@@ -19,7 +19,7 @@
         <article class="game-channel" th:each="game : ${games}" th:classappend="${!game.available()} ? 'is-disabled'">
             <div>
                 <h2 th:text="${game.name()}">MAS</h2>
-                <p th:text="${game.description()}">Beskrivning</p>
+                <p th:if="${!game.description().isBlank()}" th:text="${game.description()}">Beskrivning</p>
             </div>
             <a th:if="${game.available()}" class="button" th:href="@{/games/{id}(id=${game.id()})}">Öppna</a>
             <span th:unless="${game.available()}" class="pill">Senare</span>

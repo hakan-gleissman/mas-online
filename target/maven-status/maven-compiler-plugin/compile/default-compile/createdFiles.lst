@@ -3,6 +3,7 @@ se/sprinto/hakan/masonline/catalog/GameCatalog.class
 se/sprinto/hakan/masonline/mas/TableEvent.class
 se/sprinto/hakan/masonline/mas/PlayerView.class
 se/sprinto/hakan/masonline/card/DeckFactory.class
+se/sprinto/hakan/masonline/mas/VisibleRoundOneTrick.class
 se/sprinto/hakan/masonline/mas/MasGameView.class
 se/sprinto/hakan/masonline/mas/PendingOfferView.class
 se/sprinto/hakan/masonline/card/Rank.class

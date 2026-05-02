@@ -9,12 +9,16 @@ import org.springframework.web.bind.annotation.RestController;
 import se.sprinto.hakan.masonline.mas.MasGameService;
 
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 public class MasActionController {
 
     private final MasGameService masGameService;
     private final MasWebSocketHandler webSocketHandler;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public MasActionController(MasGameService masGameService, MasWebSocketHandler webSocketHandler) {
         this.masGameService = masGameService;
@@ -59,8 +63,13 @@ public class MasActionController {
 
     @PostMapping("/api/mas/{gameId}/respond")
     public void respond(@PathVariable String gameId, @RequestParam String playerId, @RequestParam String cardCode) {
-        masGameService.receiverRespond(gameId, playerId, cardCode);
+        String visibleTrickId = masGameService.receiverRespond(gameId, playerId, cardCode);
         webSocketHandler.broadcast(gameId);
+        scheduler.schedule(() -> {
+            if (masGameService.clearVisibleRoundOneTrick(gameId, visibleTrickId)) {
+                webSocketHandler.broadcast(gameId);
+            }
+        }, 3, TimeUnit.SECONDS);
     }
 
     @PostMapping("/api/mas/{gameId}/pickup")
@@ -72,6 +81,12 @@ public class MasActionController {
     @PostMapping("/api/mas/{gameId}/round-two/play")
     public void playRoundTwoCard(@PathVariable String gameId, @RequestParam String playerId, @RequestParam String cardCode) {
         masGameService.playRoundTwoCard(gameId, playerId, cardCode);
+        webSocketHandler.broadcast(gameId);
+    }
+
+    @PostMapping("/api/mas/{gameId}/round-two/pickup")
+    public void pickupRoundTwoCard(@PathVariable String gameId, @RequestParam String playerId) {
+        masGameService.pickupRoundTwoCard(gameId, playerId);
         webSocketHandler.broadcast(gameId);
     }
 

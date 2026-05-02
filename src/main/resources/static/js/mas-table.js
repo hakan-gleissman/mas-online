@@ -170,7 +170,11 @@ function renderHand() {
 
 function renderPendingOffer() {
     if (!state.pendingOffer || state.roundTwo) {
-        els.pendingOffer.replaceChildren();
+        if (state.visibleRoundOneTrick && !state.roundTwo) {
+            renderVisibleRoundOneTrick();
+        } else {
+            els.pendingOffer.replaceChildren();
+        }
         return;
     }
     const label = document.createElement("div");
@@ -180,6 +184,24 @@ function renderPendingOffer() {
     `;
     const card = cardElement(state.pendingOffer.sentCard);
     els.pendingOffer.replaceChildren(label, card);
+}
+
+function renderVisibleRoundOneTrick() {
+    const trick = state.visibleRoundOneTrick;
+    const label = document.createElement("div");
+    label.innerHTML = `
+        <p class="eyebrow">Stick</p>
+        <strong>${escapeHtml(trick.text)}</strong>
+    `;
+    const cards = document.createElement("div");
+    cards.className = "event-cards";
+    if (trick.sentCard) {
+        cards.append(cardElement(trick.sentCard));
+    }
+    if (trick.responseCard) {
+        cards.append(cardElement(trick.responseCard));
+    }
+    els.pendingOffer.replaceChildren(label, cards);
 }
 
 function renderRoundTwoTable() {
@@ -213,6 +235,9 @@ function renderActions() {
     if (state.youAreReceiver && receiverHasNoSuit()) {
         actions.push(actionButton("Ta upp kortet", () => post(`/api/mas/${gameId}/pickup`), false));
     }
+    if (state.canPickupRoundTwo) {
+        actions.push(actionButton("Ta upp kortet", () => post(`/api/mas/${gameId}/round-two/pickup`), false));
+    }
     els.actions.replaceChildren(...actions);
 }
 
@@ -229,7 +254,7 @@ function renderLatestEvent() {
 
 function canPlayCard(card) {
     if (state.roundTwo) {
-        return state.youAreActive;
+        return state.youAreActive && !state.mustPickupRoundTwo;
     }
     if (state.youAreActive) {
         return true;

@@ -155,7 +155,7 @@ public class MasGameService {
         finishRoundOneIfDeckIsEmpty(game);
     }
 
-    public synchronized void receiverRespond(String gameId, String playerId, String cardCode) {
+    public synchronized String receiverRespond(String gameId, String playerId, String cardCode) {
         MasGame game = game(gameId);
         PendingOffer offer = requirePendingForReceiver(game, playerId);
         MasPlayer receiver = requirePlayer(game, playerId);
@@ -165,31 +165,46 @@ public class MasGameService {
             receiver.hand().add(responseCard);
             throw new IllegalArgumentException("Mottagaren måste spela samma färg.");
         }
+        TableEvent resolvedEvent;
         if (responseCard.beats(offer.sentCard())) {
             receiver.wonCards().add(offer.sentCard());
             receiver.wonCards().add(responseCard);
             game.activePlayerId(receiver.id());
-            game.events().add(TableEvent.resolved(
+            resolvedEvent = TableEvent.resolved(
                     receiver.name() + " lade högre i samma färg och tog sticket.",
                     offer.sentCard(),
                     responseCard,
                     true
-            ));
+            );
         } else {
             sender.wonCards().add(offer.sentCard());
             sender.wonCards().add(responseCard);
             game.activePlayerId(sender.id());
-            game.events().add(TableEvent.resolved(
+            resolvedEvent = TableEvent.resolved(
                     receiver.name() + " lade lägre i samma färg. " + sender.name() + " tog sticket och fortsätter.",
                     offer.sentCard(),
                     responseCard,
                     true
-            ));
+            );
         }
+        game.events().add(resolvedEvent);
+        String visibleTrickId = UUID.randomUUID().toString();
+        game.visibleRoundOneTrick(new VisibleRoundOneTrick(visibleTrickId, resolvedEvent));
         game.lastPlayedCard(responseCard);
         game.pendingOffer(null);
         refillHands(game);
         finishRoundOneIfDeckIsEmpty(game);
+        return visibleTrickId;
+    }
+
+    public synchronized boolean clearVisibleRoundOneTrick(String gameId, String visibleTrickId) {
+        MasGame game = game(gameId);
+        VisibleRoundOneTrick visibleTrick = game.visibleRoundOneTrick();
+        if (visibleTrick == null || !visibleTrick.id().equals(visibleTrickId)) {
+            return false;
+        }
+        game.visibleRoundOneTrick(null);
+        return true;
     }
 
     public synchronized void startRoundTwo(String gameId) {
@@ -203,6 +218,7 @@ public class MasGameService {
             player.wonCards().clear();
         }
         game.roundTwoTable().clear();
+        game.visibleRoundOneTrick(null);
         game.status(MasGameStatus.ROUND_TWO);
         String starterId = firstPlayerWithCards(game)
                 .map(MasPlayer::id)
@@ -228,17 +244,41 @@ public class MasGameService {
         validateRoundTwoCard(game, player, selectedCard);
         Card playedCard = player.removeCard(cardCode);
         game.roundTwoTable().add(new RoundTwoPlay(player.id(), player.name(), playedCard));
+        game.roundTwoActedPlayerIds().add(player.id());
         game.lastPlayedCard(playedCard);
         game.events().add(TableEvent.message(player.name() + " lade " + playedCard.displayName() + "."));
 
-        if (game.roundTwoTable().size() >= game.roundTwoTrickParticipantIds().size()) {
+        if (roundTwoTrickIsComplete(game)) {
             String nextStarterId = nextRoundTwoStarter(game, player.id());
-            game.roundTwoTable().clear();
-            game.events().add(TableEvent.message("Sticket är komplett och korten kastas bort."));
-            finishIfRoundTwoDone(game);
-            if (game.status() == MasGameStatus.ROUND_TWO) {
-                startRoundTwoTrick(game, nextStarterId);
-            }
+            completeRoundTwoTrick(game, nextStarterId);
+        } else {
+            game.activePlayerId(nextRoundTwoParticipantAfter(game, player.id()));
+        }
+    }
+
+    public synchronized void pickupRoundTwoCard(String gameId, String playerId) {
+        MasGame game = game(gameId);
+        if (game.status() != MasGameStatus.ROUND_TWO) {
+            throw new IllegalStateException("Omgång 2 är inte igång.");
+        }
+        if (!playerId.equals(game.activePlayerId())) {
+            throw new IllegalStateException("Det är inte din tur.");
+        }
+        if (game.roundTwoTable().isEmpty()) {
+            throw new IllegalStateException("Det finns inget kort att ta upp.");
+        }
+        MasPlayer player = requirePlayer(game, playerId);
+        if (!canPickupRoundTwo(game, player)) {
+            throw new IllegalStateException("Du kan lägga ett kort och ska inte ta upp.");
+        }
+        RoundTwoPlay pickedUpPlay = game.roundTwoTable().removeLast();
+        player.hand().add(pickedUpPlay.card());
+        game.roundTwoActedPlayerIds().add(player.id());
+        game.events().add(TableEvent.message(player.name() + " kunde inte lägga högre och tog upp " + pickedUpPlay.card().displayName() + "."));
+
+        if (roundTwoTrickIsComplete(game)) {
+            String nextStarterId = nextRoundTwoStarter(game, pickedUpPlay.playerId());
+            completeRoundTwoTrick(game, nextStarterId);
         } else {
             game.activePlayerId(nextRoundTwoParticipantAfter(game, player.id()));
         }
@@ -262,6 +302,14 @@ public class MasGameService {
                 && viewerId != null
                 && viewerId.equals(game.activePlayerId())
                 && game.pendingOffer().isEmpty();
+        boolean mustPickupRoundTwo = game.status() == MasGameStatus.ROUND_TWO
+                && viewer != null
+                && playerCanAct
+                && mustPickupRoundTwo(game, viewer);
+        boolean canPickupRoundTwo = game.status() == MasGameStatus.ROUND_TWO
+                && viewer != null
+                && playerCanAct
+                && canPickupRoundTwo(game, viewer);
         return new MasGameView(
                 game.id(),
                 statusLabel(game.status()),
@@ -278,6 +326,7 @@ public class MasGameService {
                 hand,
                 latestEvent(game).stream().map(this::textOnlyEventView).toList(),
                 pendingOffer,
+                game.visibleRoundOneTrick() == null ? null : eventView(game.visibleRoundOneTrick().event()),
                 game.activePlayerId(),
                 activeName,
                 game.deck().size(),
@@ -287,6 +336,8 @@ public class MasGameService {
                 game.status() == MasGameStatus.WAITING && game.players().size() >= 2 && youAreHost,
                 game.status() == MasGameStatus.ROUND_ONE_FINISHED,
                 game.status() == MasGameStatus.ROUND_ONE && game.pendingOffer().isEmpty() && !game.deck().isEmpty(),
+                canPickupRoundTwo,
+                mustPickupRoundTwo,
                 game.status() == MasGameStatus.ROUND_ONE_FINISHED,
                 game.status() == MasGameStatus.ROUND_TWO,
                 game.status() == MasGameStatus.FINISHED,
@@ -385,17 +436,54 @@ public class MasGameService {
         if (canBeatPrevious && (selectedCard.suit() != previousCard.suit() || selectedCard.rank().value() <= previousCard.rank().value())) {
             throw new IllegalArgumentException("Du måste följa färg och lägga högre än föregående kort.");
         }
-        if (!canBeatPrevious && selectedCard.suit() != previousCard.suit()) {
-            throw new IllegalArgumentException("Du måste följa färg när du kan.");
+        if (!canBeatPrevious) {
+            throw new IllegalArgumentException("Du kan inte lägga högre och måste ta upp kortet.");
         }
     }
 
     private void startRoundTwoTrick(MasGame game, String starterId) {
         game.roundTwoTable().clear();
         game.roundTwoTrickParticipantIds().clear();
+        game.roundTwoActedPlayerIds().clear();
         List<MasPlayer> playersWithCards = playersWithCardsFrom(game, starterId);
         game.roundTwoTrickParticipantIds().addAll(playersWithCards.stream().map(MasPlayer::id).toList());
         game.activePlayerId(starterId);
+    }
+
+    private boolean mustPickupRoundTwo(MasGame game, MasPlayer player) {
+        if (game.roundTwoTable().isEmpty()) {
+            return false;
+        }
+        Card previousCard = game.roundTwoTable().getLast().card();
+        List<Card> sameSuitCards = player.hand().stream()
+                .filter(card -> card.suit() == previousCard.suit())
+                .toList();
+        return !sameSuitCards.isEmpty() && sameSuitCards.stream().noneMatch(card -> card.rank().value() > previousCard.rank().value());
+    }
+
+    private boolean canPickupRoundTwo(MasGame game, MasPlayer player) {
+        if (mustPickupRoundTwo(game, player)) {
+            return true;
+        }
+        if (game.trumpSuit() == null || game.roundTwoTable().isEmpty()) {
+            return false;
+        }
+        Card previousCard = game.roundTwoTable().getLast().card();
+        return previousCard.suit() == game.trumpSuit()
+                && player.hand().stream().anyMatch(card -> card.suit() == previousCard.suit() && card.rank().value() > previousCard.rank().value());
+    }
+
+    private boolean roundTwoTrickIsComplete(MasGame game) {
+        return game.roundTwoActedPlayerIds().containsAll(game.roundTwoTrickParticipantIds());
+    }
+
+    private void completeRoundTwoTrick(MasGame game, String nextStarterId) {
+        game.roundTwoTable().clear();
+        game.events().add(TableEvent.message("Sticket är komplett och korten kastas bort."));
+        finishIfRoundTwoDone(game);
+        if (game.status() == MasGameStatus.ROUND_TWO) {
+            startRoundTwoTrick(game, nextStarterId);
+        }
     }
 
     private void finishIfRoundTwoDone(MasGame game) {
@@ -406,6 +494,7 @@ public class MasGameService {
             game.status(MasGameStatus.FINISHED);
             game.activePlayerId(null);
             game.roundTwoTrickParticipantIds().clear();
+            game.roundTwoActedPlayerIds().clear();
             game.roundTwoTable().clear();
             if (playersWithCards.size() == 1) {
                 game.loserName(playersWithCards.getFirst().name());
@@ -445,8 +534,8 @@ public class MasGameService {
         int startIndex = participantIds.indexOf(playerId);
         for (int offset = 1; offset <= participantIds.size(); offset++) {
             String candidateId = participantIds.get((startIndex + offset) % participantIds.size());
-            boolean hasAlreadyPlayed = game.roundTwoTable().stream().anyMatch(play -> play.playerId().equals(candidateId));
-            if (!hasAlreadyPlayed) {
+            boolean hasAlreadyActed = game.roundTwoActedPlayerIds().contains(candidateId);
+            if (!hasAlreadyActed) {
                 return candidateId;
             }
         }
@@ -541,6 +630,15 @@ public class MasGameService {
 
     private TableEventView textOnlyEventView(TableEvent event) {
         return new TableEventView(event.text(), null, null, false);
+    }
+
+    private TableEventView eventView(TableEvent event) {
+        return new TableEventView(
+                event.text(),
+                event.sentCard() == null ? null : cardView(event.sentCard()),
+                event.responseCard() == null ? null : cardView(event.responseCard()),
+                event.trickHidden()
+        );
     }
 
     private TableEventView roundTwoPlayView(RoundTwoPlay play) {

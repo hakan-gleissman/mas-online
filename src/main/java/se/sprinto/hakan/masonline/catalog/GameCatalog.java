@@ -8,7 +8,7 @@ import java.util.List;
 public class GameCatalog {
 
     private final List<GameDefinition> games = List.of(
-            new GameDefinition("mas", "MAS", "Omgång 1 är spelbar. Omgång 2 kommer senare.", true),
+            new GameDefinition("mas", "MAS", "Spela mas online", true),
             new GameDefinition("coming-soon", "Fler kortspel", "Plats för nästa spelmodul.", false)
     );
 

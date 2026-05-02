@@ -20,11 +20,13 @@ public class MasGame {
     private final List<TableEvent> events = new ArrayList<>();
     private final List<RoundTwoPlay> roundTwoTable = new ArrayList<>();
     private final List<String> roundTwoTrickParticipantIds = new ArrayList<>();
+    private final List<String> roundTwoActedPlayerIds = new ArrayList<>();
     private final List<LoserTitleSuggestion> loserTitleSuggestions = new ArrayList<>();
     private MasGameStatus status = MasGameStatus.WAITING;
     private String hostPlayerId;
     private String activePlayerId;
     private PendingOffer pendingOffer;
+    private VisibleRoundOneTrick visibleRoundOneTrick;
     private Card lastPlayedCard;
     private Card lastDrawnCard;
     private Suit trumpSuit;
@@ -63,6 +65,10 @@ public class MasGame {
         return roundTwoTrickParticipantIds;
     }
 
+    public List<String> roundTwoActedPlayerIds() {
+        return roundTwoActedPlayerIds;
+    }
+
     public List<LoserTitleSuggestion> loserTitleSuggestions() {
         return loserTitleSuggestions;
     }
@@ -97,6 +103,14 @@ public class MasGame {
 
     public void pendingOffer(PendingOffer pendingOffer) {
         this.pendingOffer = pendingOffer;
+    }
+
+    public VisibleRoundOneTrick visibleRoundOneTrick() {
+        return visibleRoundOneTrick;
+    }
+
+    public void visibleRoundOneTrick(VisibleRoundOneTrick visibleRoundOneTrick) {
+        this.visibleRoundOneTrick = visibleRoundOneTrick;
     }
 
     public Card lastPlayedCard() {
