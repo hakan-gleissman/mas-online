@@ -127,6 +127,11 @@ public class MasGameService {
             throw new IllegalStateException("Högen är slut.");
         }
         Card sentCard = game.deck().removeFirst();
+        game.lastDrawnCard(sentCard);
+        if (game.deck().isEmpty()) {
+            finishRoundOneBecauseDeckIsEmpty(game);
+            return;
+        }
         createOffer(game, sender, sentCard);
     }
 
@@ -147,7 +152,7 @@ public class MasGameService {
         game.pendingOffer(null);
         game.activePlayerId(nextPlayerIdAfter(game, receiver.id()));
         refillHands(game);
-        finishIfRoundOneDone(game);
+        finishRoundOneIfDeckIsEmpty(game);
     }
 
     public synchronized void receiverRespond(String gameId, String playerId, String cardCode) {
@@ -184,7 +189,7 @@ public class MasGameService {
         game.lastPlayedCard(responseCard);
         game.pendingOffer(null);
         refillHands(game);
-        finishIfRoundOneDone(game);
+        finishRoundOneIfDeckIsEmpty(game);
     }
 
     public synchronized void startRoundTwo(String gameId) {
@@ -337,20 +342,31 @@ public class MasGameService {
 
     private void drawUntilThree(MasGame game, MasPlayer player) {
         while (player.hand().size() < STARTING_HAND_SIZE && !game.deck().isEmpty()) {
-            player.hand().add(game.deck().removeFirst());
+            Card drawnCard = game.deck().removeFirst();
+            game.lastDrawnCard(drawnCard);
+            player.hand().add(drawnCard);
         }
     }
 
-    private void finishIfRoundOneDone(MasGame game) {
-        boolean noCardsLeftToPlay = game.deck().isEmpty() && game.players().stream().allMatch(player -> player.hand().isEmpty());
-        if (noCardsLeftToPlay && game.status() == MasGameStatus.ROUND_ONE) {
-            game.status(MasGameStatus.ROUND_ONE_FINISHED);
-            if (game.lastPlayedCard() != null) {
-                game.trumpSuit(game.lastPlayedCard().suit());
-                game.events().add(TableEvent.message("Omgång 1 är slut. Trumf i omgång 2 blir " + game.trumpSuit().displayName() + "."));
-            } else {
-                game.events().add(TableEvent.message("Omgång 1 är slut."));
-            }
+    private void finishRoundOneIfDeckIsEmpty(MasGame game) {
+        if (game.deck().isEmpty() && game.status() == MasGameStatus.ROUND_ONE) {
+            finishRoundOneBecauseDeckIsEmpty(game);
+        }
+    }
+
+    private void finishRoundOneBecauseDeckIsEmpty(MasGame game) {
+        if (game.status() != MasGameStatus.ROUND_ONE) {
+            return;
+        }
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.activePlayerId(null);
+        game.pendingOffer(null);
+        game.players().forEach(player -> player.hand().clear());
+        if (game.lastDrawnCard() != null) {
+            game.trumpSuit(game.lastDrawnCard().suit());
+            game.events().add(TableEvent.message("Omgång 1 är slut. Trumf i omgång 2 blir " + game.trumpSuit().displayName() + "."));
+        } else {
+            game.events().add(TableEvent.message("Omgång 1 är slut."));
         }
     }
 

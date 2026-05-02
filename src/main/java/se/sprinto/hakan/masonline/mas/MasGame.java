@@ -26,6 +26,7 @@ public class MasGame {
     private String activePlayerId;
     private PendingOffer pendingOffer;
     private Card lastPlayedCard;
+    private Card lastDrawnCard;
     private Suit trumpSuit;
     private String loserName;
     private String selectedLoserTitle;
@@ -104,6 +105,14 @@ public class MasGame {
 
     public void lastPlayedCard(Card lastPlayedCard) {
         this.lastPlayedCard = lastPlayedCard;
+    }
+
+    public Card lastDrawnCard() {
+        return lastDrawnCard;
+    }
+
+    public void lastDrawnCard(Card lastDrawnCard) {
+        this.lastDrawnCard = lastDrawnCard;
     }
 
     public Suit trumpSuit() {

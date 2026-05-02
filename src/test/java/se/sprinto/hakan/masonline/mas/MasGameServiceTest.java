@@ -44,7 +44,7 @@ class MasGameServiceTest {
     }
 
     @Test
-    void roundOneEndsWhenDeckAndHandsAreEmptyAndTrumpComesFromLastPlayedCard() {
+    void roundOneEndsWhenDeckBecomesEmptyAndTrumpComesFromLastDrawnCard() {
         MasGameService service = new MasGameService();
         String gameId = service.createGame();
         MasPlayer sender = service.join(gameId, "Anna");
@@ -53,9 +53,11 @@ class MasGameServiceTest {
 
         Card sentCard = new Card(Rank.TWO, Suit.HEARTS);
         Card finalCard = new Card(Rank.THREE, Suit.HEARTS);
+        Card finalDrawnCard = new Card(Rank.ACE, Suit.SPADES);
         game.status(MasGameStatus.ROUND_ONE);
         game.activePlayerId(sender.id());
         game.deck().clear();
+        game.deck().add(finalDrawnCard);
         sender.hand().add(sentCard);
         receiver.hand().add(finalCard);
 
@@ -65,12 +67,12 @@ class MasGameServiceTest {
         MasGameView senderView = service.view(gameId, sender.id());
         assertThat(senderView.status()).isEqualTo("Omgång 1 klar");
         assertThat(senderView.roundOneFinished()).isTrue();
-        assertThat(senderView.trumpSuit()).isEqualTo("Hjärter");
+        assertThat(senderView.trumpSuit()).isEqualTo("Spader");
         assertThat(senderView.deckCount()).isZero();
         assertThat(senderView.hand()).isEmpty();
         assertThat(senderView.pendingOffer()).isNull();
         assertThat(senderView.events()).singleElement().satisfies(event -> {
-            assertThat(event.text()).isEqualTo("Omgång 1 är slut. Trumf i omgång 2 blir Hjärter.");
+            assertThat(event.text()).isEqualTo("Omgång 1 är slut. Trumf i omgång 2 blir Spader.");
             assertThat(event.sentCard()).isNull();
             assertThat(event.responseCard()).isNull();
             assertThat(event.trickHidden()).isFalse();
@@ -98,8 +100,11 @@ class MasGameServiceTest {
         game.trumpSuit(Suit.SPADES);
 
         service.startRoundTwo(gameId);
-        assertThat(service.view(gameId, first.id()).roundTwo()).isTrue();
-        assertThat(service.view(gameId, first.id()).roundTwoTrickSize()).isEqualTo(3);
+        MasGameView firstRoundTwoView = service.view(gameId, first.id());
+        assertThat(firstRoundTwoView.roundTwo()).isTrue();
+        assertThat(firstRoundTwoView.roundTwoTrickSize()).isEqualTo(3);
+        assertThat(firstRoundTwoView.hand()).extracting(CardView::code)
+                .containsExactly(firstRemainingCard.code(), firstLead.code());
 
         service.playRoundTwoCard(gameId, first.id(), firstLead.code());
         service.playRoundTwoCard(gameId, second.id(), secondCard.code());
