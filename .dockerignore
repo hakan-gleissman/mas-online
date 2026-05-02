@@ -1,0 +1,6 @@
+target/*
+!target/mas-online-*.jar
+.git
+.github
+.DS_Store
+PNG-cards-1.3

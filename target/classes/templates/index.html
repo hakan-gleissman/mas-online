@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="sv" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS Online</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main class="shell">
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">Kortspelsbord</p>
+            <h1>Välj spel</h1>
+        </div>
+    </header>
+
+    <section class="channel-list" aria-label="Kortspel">
+        <article class="game-channel" th:each="game : ${games}" th:classappend="${!game.available()} ? 'is-disabled'">
+            <div>
+                <h2 th:text="${game.name()}">MAS</h2>
+                <p th:text="${game.description()}">Beskrivning</p>
+            </div>
+            <a th:if="${game.available()}" class="button" th:href="@{/games/{id}(id=${game.id()})}">Öppna</a>
+            <span th:unless="${game.available()}" class="pill">Senare</span>
+        </article>
+    </section>
+</main>
+</body>
+</html>

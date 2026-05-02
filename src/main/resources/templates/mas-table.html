@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="sv" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS Bord</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main class="table-shell" th:data-game-id="${gameId}" th:data-player-id="${playerId}">
+    <header class="topbar table-topbar">
+        <div>
+            <p class="eyebrow">MAS</p>
+            <h1 th:text="'Match ' + ${gameId}">Match</h1>
+        </div>
+        <div class="toolbar">
+            <a id="lobbyLink" class="button secondary" th:href="@{/games/mas}" hidden>Lobby</a>
+            <button id="startGame" class="button" type="button" hidden>Starta spelet</button>
+            <button id="startRoundTwo" class="button" type="button" hidden>Starta omgång 2</button>
+        </div>
+    </header>
+
+    <section id="alert" class="alert" hidden></section>
+
+    <section class="game-layout">
+        <aside class="panel compact">
+            <h2>Spelare</h2>
+            <div id="players" class="players"></div>
+            <dl class="facts">
+                <div>
+                    <dt>Status</dt>
+                    <dd id="status">-</dd>
+                </div>
+                <div>
+                    <dt>Hög</dt>
+                    <dd id="deckCount">-</dd>
+                </div>
+                <div>
+                    <dt>Trumf</dt>
+                    <dd id="trumpSuit">-</dd>
+                </div>
+            </dl>
+        </aside>
+
+        <section class="table-area">
+            <div class="surface">
+                <div>
+                    <p class="eyebrow">På bordet</p>
+                    <h2 id="turnTitle">Väntar</h2>
+                </div>
+                <div id="pendingOffer" class="pending-offer"></div>
+                <div id="loserTitleBox" class="loser-title-box"></div>
+                <div id="roundTwoTable" class="round-two-table"></div>
+                <div id="actions" class="actions"></div>
+                <div id="latestEvent" class="latest-event" hidden></div>
+            </div>
+        </section>
+
+        <aside class="panel compact">
+            <h2>Din hand</h2>
+            <div id="hand" class="hand"></div>
+        </aside>
+    </section>
+</main>
+<script th:src="@{/js/mas-table.js}"></script>
+</body>
+</html>

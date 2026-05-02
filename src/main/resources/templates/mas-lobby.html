@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="sv" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS Lobby</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main class="shell">
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">MAS</p>
+            <h1>Lobby</h1>
+        </div>
+        <a class="button secondary" th:href="@{/}">Alla spel</a>
+    </header>
+
+    <section class="panel">
+        <h2>Starta ny match</h2>
+        <form class="inline-form" method="post" th:action="@{/games/mas}">
+            <label>
+                Ditt namn
+                <input name="playerName" maxlength="32" required autocomplete="name">
+            </label>
+            <button class="button" type="submit">Skapa match</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Öppna matcher</h2>
+        <p class="empty" th:if="${matches.isEmpty()}">Det finns inga startade matcher ännu.</p>
+        <article class="match-row" th:each="match : ${matches}">
+            <div>
+                <strong th:text="'Match ' + ${match.id()}">Match</strong>
+                <span th:text="${match.playerCount()} + ' spelare'">0 spelare</span>
+                <span class="pill" th:text="${match.status()}">Väntar</span>
+            </div>
+            <form class="join-form" th:if="${match.joinable()}" method="post" th:action="@{/games/mas/{id}/join(id=${match.id()})}">
+                <input name="playerName" maxlength="32" required placeholder="Ditt namn" autocomplete="name">
+                <button class="button" type="submit">Gå med</button>
+            </form>
+            <span th:unless="${match.joinable()}" class="pill">Stängd</span>
+        </article>
+    </section>
+</main>
+</body>
+</html>
