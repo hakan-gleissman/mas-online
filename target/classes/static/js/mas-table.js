@@ -232,7 +232,7 @@ function renderActions() {
     if (state.youAreActive && !state.roundTwo) {
         actions.push(actionButton("Dra från högen och skicka", () => post(`/api/mas/${gameId}/send-from-deck`), !state.canSendFromDeck));
     }
-    if (state.youAreReceiver && receiverHasNoSuit()) {
+    if (state.youAreReceiver && state.pendingOffer) {
         actions.push(actionButton("Ta upp kortet", () => post(`/api/mas/${gameId}/pickup`), false));
     }
     if (state.canPickupRoundTwo) {
@@ -277,10 +277,6 @@ function playCard(card) {
     if (state.youAreReceiver) {
         post(`/api/mas/${gameId}/respond`, { cardCode: card.code });
     }
-}
-
-function receiverHasNoSuit() {
-    return state.pendingOffer && state.hand.every(card => card.suit !== state.pendingOffer.sentCard.suit);
 }
 
 function actionButton(label, onClick, disabled) {

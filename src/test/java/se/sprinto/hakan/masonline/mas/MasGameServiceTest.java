@@ -16,16 +16,17 @@ class MasGameServiceTest {
         String gameId = service.createGame();
         MasPlayer first = service.join(gameId, "Anna");
         MasPlayer second = service.join(gameId, "Bo");
+        service.join(gameId, "Cia");
 
         service.start(gameId, first.id());
         MasGameView firstView = service.view(gameId, first.id());
         MasGameView secondView = service.view(gameId, second.id());
 
         assertThat(firstView.status()).isEqualTo("Omgång 1");
-        assertThat(firstView.players()).hasSize(2);
+        assertThat(firstView.players()).hasSize(3);
         assertThat(firstView.hand()).hasSize(3);
         assertThat(secondView.hand()).hasSize(3);
-        assertThat(firstView.deckCount()).isEqualTo(46);
+        assertThat(firstView.deckCount()).isEqualTo(43);
     }
 
     @Test
@@ -34,6 +35,7 @@ class MasGameServiceTest {
         String gameId = service.createGame();
         service.join(gameId, "Anna");
         service.join(gameId, "Bo");
+        service.join(gameId, "Cia");
         MasPlayer host = service.game(gameId).players().getFirst();
         service.start(gameId, host.id());
 
@@ -41,6 +43,19 @@ class MasGameServiceTest {
             assertThat(match.id()).isEqualTo(gameId);
             assertThat(match.joinable()).isFalse();
         });
+    }
+
+    @Test
+    void threePlayersAreRequiredToStart() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer host = service.join(gameId, "Anna");
+        service.join(gameId, "Bo");
+
+        assertThat(service.view(gameId, host.id()).canStart()).isFalse();
+        assertThatThrownBy(() -> service.start(gameId, host.id()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Minst tre spelare behövs för att starta.");
     }
 
     @Test
@@ -71,12 +86,52 @@ class MasGameServiceTest {
         assertThat(senderView.deckCount()).isZero();
         assertThat(senderView.hand()).isEmpty();
         assertThat(senderView.pendingOffer()).isNull();
+        assertThat(sender.wonCards()).containsExactly(finalDrawnCard);
+        assertThat(receiver.wonCards()).containsExactly(sentCard, finalCard);
         assertThat(senderView.events()).singleElement().satisfies(event -> {
             assertThat(event.text()).isEqualTo("Omgång 1 är slut. Trumf i omgång 2 blir Spader.");
             assertThat(event.sentCard()).isNull();
             assertThat(event.responseCard()).isNull();
             assertThat(event.trickHidden()).isFalse();
         });
+    }
+
+    @Test
+    void roundOneReceiverCanPickupEvenWhenAbleToPlayHigherSameSuit() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer sender = service.join(gameId, "Anna");
+        MasPlayer receiver = service.join(gameId, "Bo");
+        MasPlayer next = service.join(gameId, "Cia");
+        MasGame game = service.game(gameId);
+
+        Card sentCard = new Card(Rank.TWO, Suit.HEARTS);
+        Card higherSameSuit = new Card(Rank.THREE, Suit.HEARTS);
+        game.status(MasGameStatus.ROUND_ONE);
+        game.activePlayerId(sender.id());
+        sender.hand().add(sentCard);
+        receiver.hand().add(higherSameSuit);
+        game.deck().add(new Card(Rank.FOUR, Suit.CLUBS));
+        game.deck().add(new Card(Rank.FIVE, Suit.CLUBS));
+        game.deck().add(new Card(Rank.SIX, Suit.CLUBS));
+        game.deck().add(new Card(Rank.SEVEN, Suit.CLUBS));
+        game.deck().add(new Card(Rank.EIGHT, Suit.CLUBS));
+        game.deck().add(new Card(Rank.NINE, Suit.CLUBS));
+        game.deck().add(new Card(Rank.TEN, Suit.CLUBS));
+        game.deck().add(new Card(Rank.JACK, Suit.CLUBS));
+
+        service.sendFromHand(gameId, sender.id(), sentCard.code());
+        service.receiverPickup(gameId, receiver.id());
+
+        MasGameView receiverView = service.view(gameId, receiver.id());
+        assertThat(receiverView.hand()).extracting(CardView::code)
+                .contains(sentCard.code(), higherSameSuit.code());
+        assertThat(receiver.wonCards()).isEmpty();
+        assertThat(sender.wonCards()).isEmpty();
+        assertThat(game.activePlayerId()).isEqualTo(next.id());
+        assertThat(receiverView.events()).first().satisfies(event ->
+                assertThat(event.text()).isEqualTo("Bo valde att ta upp 2 i Hjärter.")
+        );
     }
 
     @Test

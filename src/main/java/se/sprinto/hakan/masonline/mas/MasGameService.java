@@ -15,6 +15,7 @@ import java.util.UUID;
 public class MasGameService {
 
     private static final int STARTING_HAND_SIZE = 3;
+    private static final int MIN_PLAYERS_TO_START = 3;
     private final Map<String, MasGame> games = new LinkedHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
@@ -98,8 +99,8 @@ public class MasGameService {
         if (!playerId.equals(game.hostPlayerId())) {
             throw new IllegalStateException("Bara den som skapade matchen kan starta spelet.");
         }
-        if (game.players().size() < 2) {
-            throw new IllegalStateException("Minst två spelare behövs för att starta.");
+        if (game.players().size() < MIN_PLAYERS_TO_START) {
+            throw new IllegalStateException("Minst tre spelare behövs för att starta.");
         }
         if (game.selectedLoserTitle() == null) {
             game.selectedLoserTitle("förlorare");
@@ -129,6 +130,7 @@ public class MasGameService {
         Card sentCard = game.deck().removeFirst();
         game.lastDrawnCard(sentCard);
         if (game.deck().isEmpty()) {
+            sender.hand().add(sentCard);
             finishRoundOneBecauseDeckIsEmpty(game);
             return;
         }
@@ -139,12 +141,12 @@ public class MasGameService {
         MasGame game = game(gameId);
         PendingOffer offer = requirePendingForReceiver(game, playerId);
         MasPlayer receiver = requirePlayer(game, playerId);
-        if (receiver.hasSuit(offer.sentCard())) {
-            throw new IllegalStateException("Du har färgen och måste lägga ett kort i samma färg.");
-        }
         receiver.hand().add(offer.sentCard());
+        String text = receiver.hasSuit(offer.sentCard())
+                ? receiver.name() + " valde att ta upp " + offer.sentCard().displayName() + "."
+                : receiver.name() + " hade inte färgen och tog upp " + offer.sentCard().displayName() + ".";
         game.events().add(TableEvent.resolved(
-                receiver.name() + " hade inte färgen och tog upp " + offer.sentCard().displayName() + ".",
+                text,
                 offer.sentCard(),
                 null,
                 false
@@ -333,7 +335,7 @@ public class MasGameService {
                 game.trumpSuit() == null ? null : game.trumpSuit().displayName(),
                 playerCanAct,
                 youAreReceiver,
-                game.status() == MasGameStatus.WAITING && game.players().size() >= 2 && youAreHost,
+                game.status() == MasGameStatus.WAITING && game.players().size() >= MIN_PLAYERS_TO_START && youAreHost,
                 game.status() == MasGameStatus.ROUND_ONE_FINISHED,
                 game.status() == MasGameStatus.ROUND_ONE && game.pendingOffer().isEmpty() && !game.deck().isEmpty(),
                 canPickupRoundTwo,
@@ -412,7 +414,10 @@ public class MasGameService {
         game.status(MasGameStatus.ROUND_ONE_FINISHED);
         game.activePlayerId(null);
         game.pendingOffer(null);
-        game.players().forEach(player -> player.hand().clear());
+        game.players().forEach(player -> {
+            player.wonCards().addAll(player.hand());
+            player.hand().clear();
+        });
         if (game.lastDrawnCard() != null) {
             game.trumpSuit(game.lastDrawnCard().suit());
             game.events().add(TableEvent.message("Omgång 1 är slut. Trumf i omgång 2 blir " + game.trumpSuit().displayName() + "."));
