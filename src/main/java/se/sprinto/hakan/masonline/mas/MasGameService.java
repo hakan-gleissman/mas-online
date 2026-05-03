@@ -131,6 +131,7 @@ public class MasGameService {
         game.lastDrawnCard(sentCard);
         if (game.deck().isEmpty()) {
             sender.hand().add(sentCard);
+            game.roundTwoStarterPlayerId(sender.id());
             finishRoundOneBecauseDeckIsEmpty(game);
             return;
         }
@@ -222,8 +223,7 @@ public class MasGameService {
         game.roundTwoTable().clear();
         game.visibleRoundOneTrick(null);
         game.status(MasGameStatus.ROUND_TWO);
-        String starterId = firstPlayerWithCards(game)
-                .map(MasPlayer::id)
+        String starterId = roundTwoStarter(game)
                 .orElseThrow(() -> new IllegalStateException("Ingen spelare har kort till omgång 2."));
         startRoundTwoTrick(game, starterId);
         game.events().add(TableEvent.message("Omgång 2 har börjat. " + playerName(game, starterId) + " startar första sticket."));
@@ -321,6 +321,9 @@ public class MasGameService {
                 && viewer != null
                 && playerCanAct
                 && canPickupRoundTwo(game, viewer);
+        List<String> playableCardCodes = viewer == null || !playerCanAct
+                ? List.of()
+                : playableCardCodes(game, viewer);
         return new MasGameView(
                 game.id(),
                 statusLabel(game.status()),
@@ -358,7 +361,8 @@ public class MasGameService {
                 youAreHost,
                 List.copyOf(game.loserTitleSuggestions()),
                 game.roundTwoTable().stream().map(this::roundTwoPlayView).toList(),
-                game.roundTwoTrickParticipantIds().size()
+                game.roundTwoTrickParticipantIds().size(),
+                playableCardCodes
         );
     }
 
@@ -407,6 +411,9 @@ public class MasGameService {
             Card drawnCard = game.deck().removeFirst();
             game.lastDrawnCard(drawnCard);
             player.hand().add(drawnCard);
+            if (game.deck().isEmpty()) {
+                game.roundTwoStarterPlayerId(player.id());
+            }
         }
     }
 
@@ -452,6 +459,22 @@ public class MasGameService {
         }
         if (!canBeatPrevious) {
             throw new IllegalArgumentException("Du kan inte lägga högre och måste ta upp kortet.");
+        }
+    }
+
+    private List<String> playableCardCodes(MasGame game, MasPlayer player) {
+        return player.hand().stream()
+                .filter(card -> canPlayCard(game, player, card))
+                .map(Card::code)
+                .toList();
+    }
+
+    private boolean canPlayCard(MasGame game, MasPlayer player, Card selectedCard) {
+        try {
+            validateRoundTwoCard(game, player, selectedCard);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
         }
     }
 
@@ -569,6 +592,14 @@ public class MasGameService {
 
     private Optional<MasPlayer> firstPlayerWithCards(MasGame game) {
         return game.players().stream().filter(player -> !player.hand().isEmpty()).findFirst();
+    }
+
+    private Optional<String> roundTwoStarter(MasGame game) {
+        if (game.roundTwoStarterPlayerId() != null
+                && findPlayer(game, game.roundTwoStarterPlayerId()).filter(player -> !player.hand().isEmpty()).isPresent()) {
+            return Optional.of(game.roundTwoStarterPlayerId());
+        }
+        return firstPlayerWithCards(game).map(MasPlayer::id);
     }
 
     private List<MasPlayer> playersWithCardsFrom(MasGame game, String starterId) {

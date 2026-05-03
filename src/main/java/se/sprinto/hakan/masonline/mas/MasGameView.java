@@ -30,6 +30,7 @@ public record MasGameView(
         boolean youAreHost,
         List<LoserTitleSuggestion> loserTitleSuggestions,
         List<TableEventView> roundTwoTable,
-        int roundTwoTrickSize
+        int roundTwoTrickSize,
+        List<String> playableCardCodes
 ) {
 }

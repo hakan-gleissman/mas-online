@@ -173,6 +173,65 @@ class MasGameServiceTest {
     }
 
     @Test
+    void roundTwoStartsWithPlayerWhoDrewFinalRoundOneCardDuringRefill() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasPlayer third = service.join(gameId, "Cia");
+        MasGame game = service.game(gameId);
+
+        Card sentCard = new Card(Rank.TWO, Suit.HEARTS);
+        Card responseCard = new Card(Rank.THREE, Suit.HEARTS);
+        Card finalDrawnCard = new Card(Rank.ACE, Suit.SPADES);
+        game.status(MasGameStatus.ROUND_ONE);
+        game.activePlayerId(first.id());
+        game.deck().clear();
+        game.deck().add(finalDrawnCard);
+        first.hand().add(sentCard);
+        second.hand().add(responseCard);
+        third.hand().add(new Card(Rank.FOUR, Suit.CLUBS));
+        third.hand().add(new Card(Rank.FIVE, Suit.CLUBS));
+        third.hand().add(new Card(Rank.SIX, Suit.CLUBS));
+
+        service.sendFromHand(gameId, first.id(), sentCard.code());
+        service.receiverRespond(gameId, second.id(), responseCard.code());
+        service.startRoundTwo(gameId);
+
+        MasGameView firstView = service.view(gameId, first.id());
+        assertThat(firstView.roundTwo()).isTrue();
+        assertThat(firstView.youAreActive()).isTrue();
+        assertThat(game.activePlayerId()).isEqualTo(first.id());
+    }
+
+    @Test
+    void roundTwoStartsWithPlayerWhoDrewFinalRoundOneCardFromDeckToSend() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasPlayer third = service.join(gameId, "Cia");
+        MasGame game = service.game(gameId);
+
+        Card finalDrawnCard = new Card(Rank.ACE, Suit.SPADES);
+        game.status(MasGameStatus.ROUND_ONE);
+        game.activePlayerId(third.id());
+        game.deck().clear();
+        game.deck().add(finalDrawnCard);
+        first.hand().add(new Card(Rank.TWO, Suit.CLUBS));
+        second.hand().add(new Card(Rank.THREE, Suit.CLUBS));
+        third.hand().add(new Card(Rank.FOUR, Suit.CLUBS));
+
+        service.sendFromDeck(gameId, third.id());
+        service.startRoundTwo(gameId);
+
+        MasGameView thirdView = service.view(gameId, third.id());
+        assertThat(thirdView.roundTwo()).isTrue();
+        assertThat(thirdView.youAreActive()).isTrue();
+        assertThat(game.activePlayerId()).isEqualTo(third.id());
+    }
+
+    @Test
     void hostSelectsLoserTitleBeforeStartAndLoserIsNamedByThatTitle() {
         MasGameService service = new MasGameService();
         String gameId = service.createGame();
@@ -303,6 +362,7 @@ class MasGameServiceTest {
         MasGameView secondView = service.view(gameId, second.id());
         assertThat(secondView.canPickupRoundTwo()).isTrue();
         assertThat(secondView.mustPickupRoundTwo()).isFalse();
+        assertThat(secondView.playableCardCodes()).containsExactly(higherTrump.code());
 
         service.pickupRoundTwoCard(gameId, second.id());
 
@@ -334,6 +394,7 @@ class MasGameServiceTest {
         MasGameView secondView = service.view(gameId, second.id());
         assertThat(secondView.canPickupRoundTwo()).isTrue();
         assertThat(secondView.mustPickupRoundTwo()).isFalse();
+        assertThat(secondView.playableCardCodes()).containsExactly(trump.code());
 
         service.pickupRoundTwoCard(gameId, second.id());
 

@@ -30,6 +30,7 @@ public class MasGame {
     private Card lastPlayedCard;
     private Card lastDrawnCard;
     private Suit trumpSuit;
+    private String roundTwoStarterPlayerId;
     private String loserName;
     private String selectedLoserTitle;
 
@@ -135,6 +136,14 @@ public class MasGame {
 
     public void trumpSuit(Suit trumpSuit) {
         this.trumpSuit = trumpSuit;
+    }
+
+    public String roundTwoStarterPlayerId() {
+        return roundTwoStarterPlayerId;
+    }
+
+    public void roundTwoStarterPlayerId(String roundTwoStarterPlayerId) {
+        this.roundTwoStarterPlayerId = roundTwoStarterPlayerId;
     }
 
     public String loserName() {
