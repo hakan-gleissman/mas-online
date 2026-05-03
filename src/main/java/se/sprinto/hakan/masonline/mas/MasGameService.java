@@ -454,6 +454,9 @@ public class MasGameService {
             return;
         }
         boolean canBeatPrevious = sameSuitCards.stream().anyMatch(card -> card.rank().value() > previousCard.rank().value());
+        if (!canBeatPrevious && selectedCard.suit() == game.trumpSuit() && previousCard.suit() != game.trumpSuit()) {
+            return;
+        }
         if (canBeatPrevious && (selectedCard.suit() != previousCard.suit() || selectedCard.rank().value() <= previousCard.rank().value())) {
             throw new IllegalArgumentException("Du måste följa färg och lägga högre än föregående kort.");
         }
@@ -495,7 +498,10 @@ public class MasGameService {
         List<Card> sameSuitCards = player.hand().stream()
                 .filter(card -> card.suit() == previousCard.suit())
                 .toList();
-        return !sameSuitCards.isEmpty() && sameSuitCards.stream().noneMatch(card -> card.rank().value() > previousCard.rank().value());
+        boolean hasHigherSameSuit = sameSuitCards.stream().anyMatch(card -> card.rank().value() > previousCard.rank().value());
+        boolean canTrump = previousCard.suit() != game.trumpSuit()
+                && player.hand().stream().anyMatch(card -> card.suit() == game.trumpSuit());
+        return !sameSuitCards.isEmpty() && !hasHigherSameSuit && !canTrump;
     }
 
     private boolean canPickupRoundTwo(MasGame game, MasPlayer player) {
@@ -510,6 +516,11 @@ public class MasGameService {
                 .filter(card -> card.suit() == previousCard.suit())
                 .toList();
         if (sameSuitCards.isEmpty()) {
+            return true;
+        }
+        boolean hasHigherSameSuit = sameSuitCards.stream().anyMatch(card -> card.rank().value() > previousCard.rank().value());
+        if (!hasHigherSameSuit && previousCard.suit() != game.trumpSuit()
+                && player.hand().stream().anyMatch(card -> card.suit() == game.trumpSuit())) {
             return true;
         }
         return previousCard.suit() == game.trumpSuit()

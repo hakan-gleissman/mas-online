@@ -342,6 +342,38 @@ class MasGameServiceTest {
     }
 
     @Test
+    void roundTwoPlayerMayPlayTrumpWhenSameSuitCannotBeatPreviousNonTrumpCard() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasGame game = service.game(gameId);
+
+        Card lead = new Card(Rank.THREE, Suit.HEARTS);
+        Card lowerSameSuit = new Card(Rank.TWO, Suit.HEARTS);
+        Card trump = new Card(Rank.FOUR, Suit.SPADES);
+        first.wonCards().add(lead);
+        second.wonCards().add(lowerSameSuit);
+        second.wonCards().add(trump);
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.trumpSuit(Suit.SPADES);
+
+        service.startRoundTwo(gameId);
+        service.playRoundTwoCard(gameId, first.id(), lead.code());
+
+        MasGameView secondView = service.view(gameId, second.id());
+        assertThat(secondView.canPickupRoundTwo()).isTrue();
+        assertThat(secondView.mustPickupRoundTwo()).isFalse();
+        assertThat(secondView.playableCardCodes()).containsExactly(trump.code());
+
+        service.playRoundTwoCard(gameId, second.id(), trump.code());
+
+        MasGameView finishedView = service.view(gameId, second.id());
+        assertThat(finishedView.gameFinished()).isTrue();
+        assertThat(finishedView.loserName()).isEqualTo("Bo");
+    }
+
+    @Test
     void roundTwoPlayerMayPickupTrumpEvenWhenAbleToBeatIt() {
         MasGameService service = new MasGameService();
         String gameId = service.createGame();
