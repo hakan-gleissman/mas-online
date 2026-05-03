@@ -246,7 +246,6 @@ public class MasGameService {
         validateRoundTwoCard(game, player, selectedCard);
         Card playedCard = player.removeCard(cardCode);
         game.roundTwoTable().add(new RoundTwoPlay(player.id(), player.name(), playedCard));
-        game.roundTwoActedPlayerIds().add(player.id());
         game.lastPlayedCard(playedCard);
         game.events().add(TableEvent.message(player.name() + " lade " + playedCard.displayName() + "."));
 
@@ -254,7 +253,7 @@ public class MasGameService {
             String nextStarterId = nextRoundTwoStarter(game, player.id());
             completeRoundTwoTrick(game, nextStarterId);
         } else {
-            game.activePlayerId(nextRoundTwoParticipantAfter(game, player.id()));
+            game.activePlayerId(nextPlayerWithCardsAfter(game, player.id()));
         }
     }
 
@@ -495,7 +494,7 @@ public class MasGameService {
     }
 
     private boolean roundTwoTrickIsComplete(MasGame game) {
-        return game.roundTwoActedPlayerIds().containsAll(game.roundTwoTrickParticipantIds());
+        return game.roundTwoTable().size() >= game.roundTwoTrickParticipantIds().size();
     }
 
     private void completeRoundTwoTrick(MasGame game, String nextStarterId) {
@@ -548,19 +547,6 @@ public class MasGameService {
                 .filter(player -> !player.hand().isEmpty())
                 .map(MasPlayer::id)
                 .orElseGet(() -> nextPlayerWithCardsAfter(game, lastPlayerId));
-    }
-
-    private String nextRoundTwoParticipantAfter(MasGame game, String playerId) {
-        List<String> participantIds = game.roundTwoTrickParticipantIds();
-        int startIndex = participantIds.indexOf(playerId);
-        for (int offset = 1; offset <= participantIds.size(); offset++) {
-            String candidateId = participantIds.get((startIndex + offset) % participantIds.size());
-            boolean hasAlreadyActed = game.roundTwoActedPlayerIds().contains(candidateId);
-            if (!hasAlreadyActed) {
-                return candidateId;
-            }
-        }
-        throw new IllegalStateException("Sticket är redan komplett.");
     }
 
     private String nextPlayerWithCardsAfter(MasGame game, String playerId) {

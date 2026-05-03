@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: se.sprinto.hakan.masonline.mas.MasGameServiceTest
 -------------------------------------------------------------------------------
-Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.292 s -- in se.sprinto.hakan.masonline.mas.MasGameServiceTest
+Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.123 s -- in se.sprinto.hakan.masonline.mas.MasGameServiceTest

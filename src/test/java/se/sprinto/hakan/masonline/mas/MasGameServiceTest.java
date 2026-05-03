@@ -395,6 +395,46 @@ class MasGameServiceTest {
     }
 
     @Test
+    void roundTwoTurnOrderContinuesAfterPickupWithoutSkippingPreviousPlayers() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasPlayer third = service.join(gameId, "Cia");
+        MasGame game = service.game(gameId);
+
+        Card firstLead = new Card(Rank.THREE, Suit.HEARTS);
+        Card firstSecondPlay = new Card(Rank.FIVE, Suit.HEARTS);
+        Card secondPlay = new Card(Rank.FOUR, Suit.HEARTS);
+        Card secondSecondPlay = new Card(Rank.SIX, Suit.HEARTS);
+        Card thirdLowerSameSuit = new Card(Rank.TWO, Suit.HEARTS);
+        first.wonCards().add(firstLead);
+        first.wonCards().add(firstSecondPlay);
+        second.wonCards().add(secondPlay);
+        second.wonCards().add(secondSecondPlay);
+        third.wonCards().add(thirdLowerSameSuit);
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.trumpSuit(Suit.SPADES);
+
+        service.startRoundTwo(gameId);
+        service.playRoundTwoCard(gameId, first.id(), firstLead.code());
+        service.playRoundTwoCard(gameId, second.id(), secondPlay.code());
+        service.pickupRoundTwoCard(gameId, third.id());
+
+        assertThat(service.view(gameId, first.id()).youAreActive()).isTrue();
+
+        service.playRoundTwoCard(gameId, first.id(), firstSecondPlay.code());
+
+        assertThat(service.view(gameId, second.id()).youAreActive()).isTrue();
+        assertThat(service.view(gameId, third.id()).youAreActive()).isFalse();
+
+        service.playRoundTwoCard(gameId, second.id(), secondSecondPlay.code());
+
+        assertThat(game.status()).isEqualTo(MasGameStatus.FINISHED);
+        assertThat(game.loserName()).isEqualTo("Cia");
+    }
+
+    @Test
     void roundTwoNextPlayerMayStartAnySuitWhenPickupEmptiesPile() {
         MasGameService service = new MasGameService();
         String gameId = service.createGame();
