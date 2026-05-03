@@ -312,4 +312,127 @@ class MasGameServiceTest {
         assertThat(finishedView.hand()).extracting(CardView::code)
                 .containsExactly(trumpLead.code(), higherTrump.code());
     }
+
+    @Test
+    void roundTwoPlayerMayPickupWhenUnableToFollowSuitEvenWithTrumpAvailable() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasGame game = service.game(gameId);
+
+        Card lead = new Card(Rank.THREE, Suit.HEARTS);
+        Card trump = new Card(Rank.ACE, Suit.SPADES);
+        first.wonCards().add(lead);
+        second.wonCards().add(trump);
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.trumpSuit(Suit.SPADES);
+
+        service.startRoundTwo(gameId);
+        service.playRoundTwoCard(gameId, first.id(), lead.code());
+
+        MasGameView secondView = service.view(gameId, second.id());
+        assertThat(secondView.canPickupRoundTwo()).isTrue();
+        assertThat(secondView.mustPickupRoundTwo()).isFalse();
+
+        service.pickupRoundTwoCard(gameId, second.id());
+
+        MasGameView finishedView = service.view(gameId, second.id());
+        assertThat(finishedView.gameFinished()).isTrue();
+        assertThat(finishedView.loserName()).isEqualTo("Bo");
+        assertThat(finishedView.hand()).extracting(CardView::code)
+                .containsExactly(lead.code(), trump.code());
+    }
+
+    @Test
+    void roundTwoPickupOnlyTakesTopCardAndNextPlayerMustBeatNewTopCard() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasPlayer third = service.join(gameId, "Cia");
+        MasPlayer fourth = service.join(gameId, "Dan");
+        MasGame game = service.game(gameId);
+
+        Card firstLead = new Card(Rank.THREE, Suit.HEARTS);
+        Card secondPlay = new Card(Rank.FOUR, Suit.HEARTS);
+        Card thirdLowerSameSuit = new Card(Rank.TWO, Suit.HEARTS);
+        Card fourthTooLow = new Card(Rank.THREE, Suit.HEARTS);
+        Card fourthPlayable = new Card(Rank.FIVE, Suit.HEARTS);
+        first.wonCards().add(firstLead);
+        second.wonCards().add(secondPlay);
+        third.wonCards().add(thirdLowerSameSuit);
+        fourth.wonCards().add(fourthTooLow);
+        fourth.wonCards().add(fourthPlayable);
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.trumpSuit(Suit.SPADES);
+
+        service.startRoundTwo(gameId);
+        service.playRoundTwoCard(gameId, first.id(), firstLead.code());
+        service.playRoundTwoCard(gameId, second.id(), secondPlay.code());
+        service.pickupRoundTwoCard(gameId, third.id());
+
+        MasGameView thirdView = service.view(gameId, third.id());
+        assertThat(third.hand()).hasSize(2);
+        assertThat(thirdView.hand()).extracting(CardView::code)
+                .containsExactly(thirdLowerSameSuit.code(), secondPlay.code());
+        assertThat(thirdView.roundTwoTable()).extracting(TableEventView::sentCard)
+                .extracting(CardView::code)
+                .containsExactly(firstLead.code());
+        assertThat(thirdView.events()).singleElement().satisfies(event ->
+                assertThat(event.text()).isEqualTo("Cia kunde inte lägga högre och tog upp 4 i Hjärter. 1 kort ligger kvar i högen.")
+        );
+        assertThat(service.view(gameId, fourth.id()).youAreActive()).isTrue();
+
+        assertThatThrownBy(() -> service.playRoundTwoCard(gameId, fourth.id(), fourthTooLow.code()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Du måste följa färg och lägga högre än föregående kort.");
+
+        service.playRoundTwoCard(gameId, fourth.id(), fourthPlayable.code());
+
+        assertThat(game.status()).isEqualTo(MasGameStatus.ROUND_TWO);
+        assertThat(game.activePlayerId()).isEqualTo(third.id());
+    }
+
+    @Test
+    void roundTwoNextPlayerMayStartAnySuitWhenPickupEmptiesPile() {
+        MasGameService service = new MasGameService();
+        String gameId = service.createGame();
+        MasPlayer first = service.join(gameId, "Anna");
+        MasPlayer second = service.join(gameId, "Bo");
+        MasPlayer third = service.join(gameId, "Cia");
+        MasGame game = service.game(gameId);
+
+        Card lead = new Card(Rank.THREE, Suit.HEARTS);
+        Card lowerSameSuit = new Card(Rank.TWO, Suit.HEARTS);
+        Card freeSuit = new Card(Rank.FOUR, Suit.CLUBS);
+        first.wonCards().add(lead);
+        second.wonCards().add(lowerSameSuit);
+        third.wonCards().add(freeSuit);
+        game.status(MasGameStatus.ROUND_ONE_FINISHED);
+        game.trumpSuit(Suit.SPADES);
+
+        service.startRoundTwo(gameId);
+        service.playRoundTwoCard(gameId, first.id(), lead.code());
+        service.pickupRoundTwoCard(gameId, second.id());
+
+        MasGameView thirdView = service.view(gameId, third.id());
+        assertThat(thirdView.youAreActive()).isTrue();
+        assertThat(thirdView.roundTwoTable()).isEmpty();
+
+        service.playRoundTwoCard(gameId, third.id(), freeSuit.code());
+
+        MasGameView secondView = service.view(gameId, second.id());
+        assertThat(secondView.gameFinished()).isFalse();
+        assertThat(secondView.youAreActive()).isTrue();
+        assertThat(secondView.roundTwoTable()).extracting(TableEventView::sentCard)
+                .extracting(CardView::code)
+                .containsExactly(freeSuit.code());
+
+        service.playRoundTwoCard(gameId, second.id(), lowerSameSuit.code());
+
+        MasGameView finishedView = service.view(gameId, second.id());
+        assertThat(finishedView.gameFinished()).isTrue();
+        assertThat(finishedView.loserName()).isEqualTo("Bo");
+    }
 }

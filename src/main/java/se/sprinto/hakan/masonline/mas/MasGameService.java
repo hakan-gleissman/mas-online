@@ -273,17 +273,27 @@ public class MasGameService {
         if (!canPickupRoundTwo(game, player)) {
             throw new IllegalStateException("Du kan lägga ett kort och ska inte ta upp.");
         }
+        boolean mustPickup = mustPickupRoundTwo(game, player);
         RoundTwoPlay pickedUpPlay = game.roundTwoTable().removeLast();
         player.hand().add(pickedUpPlay.card());
-        game.roundTwoActedPlayerIds().add(player.id());
-        game.events().add(TableEvent.message(player.name() + " kunde inte lägga högre och tog upp " + pickedUpPlay.card().displayName() + "."));
-
-        if (roundTwoTrickIsComplete(game)) {
-            String nextStarterId = nextRoundTwoStarter(game, pickedUpPlay.playerId());
-            completeRoundTwoTrick(game, nextStarterId);
+        int remainingPileSize = game.roundTwoTable().size();
+        String pickupText = mustPickup
+                ? player.name() + " kunde inte lägga högre och tog upp " + pickedUpPlay.card().displayName() + "."
+                : player.name() + " valde att ta upp " + pickedUpPlay.card().displayName() + ".";
+        if (remainingPileSize == 0) {
+            pickupText += " Högen är tom.";
         } else {
-            game.activePlayerId(nextRoundTwoParticipantAfter(game, player.id()));
+            pickupText += " " + remainingPileSize + " kort ligger kvar i högen.";
         }
+        game.events().add(TableEvent.message(pickupText));
+
+        String nextPlayerId = nextPlayerWithCardsAfter(game, player.id());
+        if (game.roundTwoTable().isEmpty()) {
+            startRoundTwoTrick(game, nextPlayerId);
+        } else {
+            game.activePlayerId(nextPlayerId);
+        }
+        finishIfRoundTwoDone(game);
     }
 
     public synchronized MasGameView view(String gameId, String viewerId) {
@@ -474,8 +484,14 @@ public class MasGameService {
             return false;
         }
         Card previousCard = game.roundTwoTable().getLast().card();
+        List<Card> sameSuitCards = player.hand().stream()
+                .filter(card -> card.suit() == previousCard.suit())
+                .toList();
+        if (sameSuitCards.isEmpty()) {
+            return true;
+        }
         return previousCard.suit() == game.trumpSuit()
-                && player.hand().stream().anyMatch(card -> card.suit() == previousCard.suit() && card.rank().value() > previousCard.rank().value());
+                && sameSuitCards.stream().anyMatch(card -> card.rank().value() > previousCard.rank().value());
     }
 
     private boolean roundTwoTrickIsComplete(MasGame game) {
