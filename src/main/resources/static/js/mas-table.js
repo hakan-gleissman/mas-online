@@ -254,7 +254,13 @@ function renderLatestEvent() {
 
 function canPlayCard(card) {
     if (state.roundTwo) {
-        return state.youAreActive && state.playableCardCodes.includes(card.code);
+        if (!state.youAreActive) {
+            return false;
+        }
+        if (!Array.isArray(state.playableCardCodes)) {
+            return true;
+        }
+        return state.playableCardCodes.includes(card.code);
     }
     if (state.youAreActive) {
         return true;
